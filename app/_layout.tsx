@@ -6,8 +6,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-import { AppProvider, useAppContext } from '@/hooks/AppContext';
+import { useColorScheme } from '@/hooks/theme/useColorScheme';
+import { AppProvider, useAppContext } from '@/context/AppContext';
 import { DrizzleStudioDevTool } from '@/database/DrizzleStudio';
 
 SplashScreen.preventAutoHideAsync();
