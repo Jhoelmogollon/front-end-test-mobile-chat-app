@@ -1,4 +1,4 @@
-import { useUserDb, User } from './db/useUserDb';
+import { useUserDb, User } from '../db/useUserDb';
 
 export { User };
 

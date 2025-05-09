@@ -1,8 +1,8 @@
 import React, { createContext, useContext, ReactNode, useState } from 'react';
-import { useUser, User } from './useUser';
-import { useChats, Chat } from './useChats';
+import { useUser, User } from '../hooks/users/useUser';
+import { useChats, Chat } from '../hooks/chats/useChats';
 import { DatabaseProvider } from '../database/DatabaseProvider';
-import { useDatabase } from './useDatabase';
+import { useDatabase } from '../hooks/db/useDatabase';
 
 export interface AppContextType {
   currentUser: User | null;
