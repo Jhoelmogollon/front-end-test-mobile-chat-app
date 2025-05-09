@@ -28,6 +28,7 @@ export interface Chat {
 export function useChatsDb(currentUserId: string | null) {
   const [userChats, setUserChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isUpdateChats, setIsUpdateChats] = useState(false);
 
   // Load chats for the current user
   useEffect(() => {
@@ -118,6 +119,7 @@ export function useChatsDb(currentUserId: string | null) {
         }
         
         setUserChats(loadedChats);
+        setIsUpdateChats(false);
       } catch (error) {
         console.error('Error loading chats:', error);
       } finally {
@@ -126,7 +128,7 @@ export function useChatsDb(currentUserId: string | null) {
     };
     
     loadChats();
-  }, [currentUserId]);
+  }, [currentUserId, isUpdateChats]);
 
   const createChat = useCallback(async (participantIds: string[]) => {
     if (!currentUserId || !participantIds.includes(currentUserId)) {
@@ -317,7 +319,7 @@ export function useChatsDb(currentUserId: string | null) {
           }),
         }));
       });
-
+      setIsUpdateChats(true);
       return true;
     } catch (error) {
       console.error('Error editing message:', error);
@@ -363,6 +365,7 @@ export function useChatsDb(currentUserId: string | null) {
         }));
       });
 
+      setIsUpdateChats(true);
       return true;
     } catch (error) {
       console.error('Error deleting message:', error);
