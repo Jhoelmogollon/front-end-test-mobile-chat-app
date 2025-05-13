@@ -1,5 +1,5 @@
 import React from "react";
-import { Message } from "@/hooks/useChats";
+import { Message } from "@/hooks/chats/useChats";
 import { StyleSheet } from "react-native";
 import { ThemedText } from "../ThemedText";
 
