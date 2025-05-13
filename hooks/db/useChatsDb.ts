@@ -3,6 +3,7 @@ import { db } from '../../database/db';
 import { chats, chatParticipants, messages } from '../../database/schema';
 import { eq } from 'drizzle-orm';
 import { MessageStatus } from '@/components/messages/MessageStatus'
+import { MESSAGE_STATUS } from '@/constants/messageStatus';
 
 export interface Message {
   id: string;
@@ -28,7 +29,6 @@ export interface Chat {
 export function useChatsDb(currentUserId: string | null) {
   const [userChats, setUserChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isUpdateChats, setIsUpdateChats] = useState(false);
 
   // Load chats for the current user
   useEffect(() => {
@@ -38,49 +38,49 @@ export function useChatsDb(currentUserId: string | null) {
         setLoading(false);
         return;
       }
-      
+
       try {
         // Get chat IDs where the user is a participant
         const participantRows = await db
           .select()
           .from(chatParticipants)
           .where(eq(chatParticipants.userId, currentUserId));
-          
+
         const chatIds = participantRows.map(row => row.chatId);
-        
+
         if (chatIds.length === 0) {
           setUserChats([]);
           setLoading(false);
           return;
         }
-        
+
         // Build the complete chat objects
         const loadedChats: Chat[] = [];
-        
+
         for (const chatId of chatIds) {
           // Get the chat
           const chatData = await db
             .select()
             .from(chats)
             .where(eq(chats.id, chatId));
-            
+
           if (chatData.length === 0) continue;
-          
+
           // Get participants
           const participantsData = await db
             .select()
             .from(chatParticipants)
             .where(eq(chatParticipants.chatId, chatId));
-            
+
           const participantIds = participantsData.map(p => p.userId);
-          
+
           // Get messages
           const messagesData = await db
             .select()
             .from(messages)
             .where(eq(messages.chatId, chatId))
             .orderBy(messages.timestamp);
-            
+
           const chatMessages = messagesData.map(m => {
             let readBy: string[] = [];
             try {
@@ -89,13 +89,13 @@ export function useChatsDb(currentUserId: string | null) {
               console.warn('Error parsing readBy for message:', m.id, error);
               readBy = [];
             }
-            
+
             return {
               id: m.id,
               senderId: m.senderId,
               text: m.text,
               timestamp: m.timestamp,
-              status: m.status || 'sent',
+              status: m.status || MESSAGE_STATUS.SENT,
               readBy,
               isEdited: m.isEdited || false,
               isDeleted: m.isDeleted || false,
@@ -104,12 +104,12 @@ export function useChatsDb(currentUserId: string | null) {
               originalText: m.originalText || undefined,
             };
           });
-          
+
           // Determine last message
-          const lastMessage = chatMessages.length > 0 
-            ? chatMessages[chatMessages.length - 1] 
+          const lastMessage = chatMessages.length > 0
+            ? chatMessages[chatMessages.length - 1]
             : undefined;
-          
+
           loadedChats.push({
             id: chatId,
             participants: participantIds,
@@ -117,32 +117,31 @@ export function useChatsDb(currentUserId: string | null) {
             lastMessage,
           });
         }
-        
+
         setUserChats(loadedChats);
-        setIsUpdateChats(false);
       } catch (error) {
         console.error('Error loading chats:', error);
       } finally {
         setLoading(false);
       }
     };
-    
+
     loadChats();
-  }, [currentUserId, isUpdateChats]);
+  }, [currentUserId]);
 
   const createChat = useCallback(async (participantIds: string[]) => {
     if (!currentUserId || !participantIds.includes(currentUserId)) {
       return null;
     }
-    
+
     try {
       const chatId = `chat${Date.now()}`;
-      
+
       // Insert new chat
       await db.insert(chats).values({
         id: chatId,
       });
-      
+
       // Insert participants
       for (const userId of participantIds) {
         await db.insert(chatParticipants).values({
@@ -151,13 +150,13 @@ export function useChatsDb(currentUserId: string | null) {
           userId: userId,
         });
       }
-      
+
       const newChat: Chat = {
         id: chatId,
         participants: participantIds,
         messages: [],
       };
-      
+
       setUserChats(prevChats => [...prevChats, newChat]);
       return newChat;
     } catch (error) {
@@ -168,11 +167,11 @@ export function useChatsDb(currentUserId: string | null) {
 
   const sendMessage = useCallback(async (chatId: string, text: string, senderId: string) => {
     if (!text.trim()) return false;
-    
+
     try {
       const messageId = `msg${Date.now()}`;
       const timestamp = Date.now();
-      
+
       // Insert new message
       await db.insert(messages).values({
         id: messageId,
@@ -180,22 +179,23 @@ export function useChatsDb(currentUserId: string | null) {
         senderId: senderId,
         text: text,
         timestamp: timestamp,
-        status: 'sent',
+        status: MESSAGE_STATUS.SENT,
         readBy: JSON.stringify([senderId]), // The sender has always read his own message.
         originalText: text,
       });
-      
+
       const newMessage: Message = {
         id: messageId,
         senderId,
         text,
+        originalText: text,
         timestamp,
-        status: 'sent',
+        status: MESSAGE_STATUS.SENT,
         readBy: [senderId],
         isEdited: false,
         isDeleted: false,
       };
-      
+
       // Update state
       setUserChats(prevChats => {
         return prevChats.map(chat => {
@@ -209,7 +209,7 @@ export function useChatsDb(currentUserId: string | null) {
           return chat;
         });
       });
-      
+
       return true;
     } catch (error) {
       console.error('Error sending message:', error);
@@ -242,7 +242,7 @@ export function useChatsDb(currentUserId: string | null) {
       await db
         .update(messages)
         .set({
-          status: 'read',
+          status: MESSAGE_STATUS.SENT,
           readBy: JSON.stringify(readBy),
         })
         .where(eq(messages.id, messageId));
@@ -255,7 +255,7 @@ export function useChatsDb(currentUserId: string | null) {
             if (msg.id === messageId) {
               return {
                 ...msg,
-                status: 'read',
+                status: MESSAGE_STATUS.SENT,
                 readBy: readBy,
               };
             }
@@ -303,23 +303,31 @@ export function useChatsDb(currentUserId: string | null) {
 
       // Update state
       setUserChats(prevChats => {
-        return prevChats.map(chat => ({
-          ...chat,
-          messages: chat.messages.map(msg => {
-            if (msg.id === messageId) {
-              return {
-                ...msg,
-                text: newText,
-                isEdited: true,
-                editedAt: Date.now(),
-                originalText: msg.text,
-              };
-            }
-            return msg;
-          }),
-        }));
+        return prevChats.map(chat => {
+          if (chat.id === message.chatId) {
+            const updatedMessages = chat.messages.map(msg => {
+              if (msg.id === messageId) {
+                return {
+                  ...msg,
+                  text: newText,
+                  isEdited: true,
+                  editedAt: Date.now(),
+                };
+              }
+              return msg;
+            });
+
+            const newLastMessage = updatedMessages[updatedMessages.length - 1];
+
+            return {
+              ...chat,
+              messages: updatedMessages,
+              lastMessage: newLastMessage,
+            };
+          }
+          return chat;
+        });
       });
-      setIsUpdateChats(true);
       return true;
     } catch (error) {
       console.error('Error editing message:', error);
@@ -350,22 +358,31 @@ export function useChatsDb(currentUserId: string | null) {
 
       // Update state
       setUserChats(prevChats => {
-        return prevChats.map(chat => ({
-          ...chat,
-          messages: chat.messages.map(msg => {
-            if (msg.id === messageId) {
-              return {
-                ...msg,
-                isDeleted: true,
-                deletedAt: Date.now(),
-              };
-            }
-            return msg;
-          }),
-        }));
+        return prevChats.map(chat => {
+          if (chat.id === message.chatId) {
+            const updatedMessages = chat.messages.map(msg => {
+              if (msg.id === messageId) {
+                return {
+                  ...msg,
+                  isDeleted: true,
+                  deletedAt: Date.now(),
+                };
+              }
+              return msg;
+            });
+
+            const newLastMessage = updatedMessages[updatedMessages.length - 1];
+
+            return {
+              ...chat,
+              messages: updatedMessages,
+              lastMessage: newLastMessage,
+            };
+          }
+          return chat;
+        });
       });
 
-      setIsUpdateChats(true);
       return true;
     } catch (error) {
       console.error('Error deleting message:', error);
@@ -382,4 +399,4 @@ export function useChatsDb(currentUserId: string | null) {
     deleteMessage,
     loading,
   };
-} 
+}
